@@ -2,6 +2,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::cell::UnsafeCell;
 use std::mem::MaybeUninit;
 
+use crate::low_latency_comm::receiver;
+
+use super::{receiver::Receiver, sender::Sender};
+
 const BUFFER_CAPACITY: usize = 4096;
 
 // TODO: Add comment
@@ -32,7 +36,7 @@ impl <T> SPSC<T> {
         }
 
         unsafe {
-            let that_buffer = self.buffer[next_index].get();
+            let that_buffer = self.buffer[tail].get();
             (*that_buffer).write(item);
         }
 
@@ -55,5 +59,14 @@ impl <T> SPSC<T> {
             self.head_index.store(next_index, Ordering::Release);
             Ok(item)
         }
+    }
+
+    pub fn split(self) -> (Sender<T>, Receiver<T>) {
+        let core_queue = Box::into_raw(Box::new(self));
+
+        let sender = Sender::new(core_queue);
+        let receiver = Receiver::new(core_queue);
+
+        (sender, receiver)
     }
 }
