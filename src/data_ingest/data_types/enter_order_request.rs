@@ -1,3 +1,5 @@
+use std::fmt;
+
 /*   Only simple cases are considered in the code, the optional appendage is ignored    */
 
 #[repr(C, packed)]
@@ -15,4 +17,44 @@ pub struct EnterOrderRequest {
     pub cross_type: u8,                 // Offset 30, Length 1 (Alpha: N, O, C, H, S, R, E, A)
     pub cl_ord_id: [u8; 14],            // Offset 31, Length 14 (Alpha)
     pub appendage_length: u16,          // Offset 45, Length 2 (Integer)
+}
+
+impl fmt::Debug for EnterOrderRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Helper function to safely convert a fixed-size byte array to a trimmed string
+        let format_alpha = |bytes: &[u8]| -> String {
+            // Find the index of the first null byte or space, then convert to string
+            let len = bytes.iter().position(|&b| b == 0x20 || b == 0x00).unwrap_or(bytes.len());
+            String::from_utf8_lossy(&bytes[..len]).into_owned()
+        };
+
+        // Helper function to convert a single byte to a Char (for easier reading)
+        let byte_to_char = |byte: u8| -> char { byte as char };
+
+        // --- Assign formatted results to local variables (as requested) ---
+        let msg_type_char = byte_to_char(self.message_type);
+        let side_char = byte_to_char(self.side);
+        let symbol_string = format_alpha(&self.symbol);
+        let tif_char = byte_to_char(self.time_in_force);
+        let display_char = byte_to_char(self.display);
+        let capacity_char = byte_to_char(self.capacity);
+        let ime_eligibility_char = byte_to_char(self.inter_market_sweep_eligibility);
+        let cross_type_char = byte_to_char(self.cross_type);
+        let cl_ord_id_string = format_alpha(&self.cl_ord_id);
+
+
+        f.debug_struct("EnterOrderRequest")
+            .field("type", &msg_type_char)
+            .field("side", &side_char)
+            .field("symbol", &symbol_string)
+            // Note: price is printed as raw u64. In production, this would be converted 
+            // to a floating-point number using the protocol's scaling factor. 
+            .field("time_in_force", &tif_char)
+            .field("display", &display_char)
+            .field("capacity", &capacity_char)
+            .field("ime_eligibility", &ime_eligibility_char)
+            .field("cross_type", &cross_type_char)
+            .field("cl_ord_id", &cl_ord_id_string)
+            .finish()
+    }
 }
