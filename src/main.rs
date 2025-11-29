@@ -107,7 +107,7 @@ const MESSAGE_4: [u8; 47] = [
     // Symbol (Offset 10, Length 8): "BABA    "
     b'B', b'A', b'B', b'A', 0x20, 0x20, 0x20, 0x20,
     // Price (Offset 18, Length 8): 10.00 (Scaled u64)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x12, 0x15,
     // Time In Force (Offset 26, Length 1): 'E' (After Hours)
     b'E',
     // Display (Offset 27, Length 1): 'Y'

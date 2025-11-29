@@ -7,12 +7,21 @@ mod protocol_request;
 pub use parser::Parser;
 pub use protocol_request::ProtocolRequest;
 
-pub use self::data_types::{AccountQueryRequest, 
+
+// considered order types
+
+pub use self::data_types::{
     CancelOrderRequest, 
+    EnterOrderRequest,
+    ModifyOrderRequest,
+};
+
+// ignored order types
+
+pub use self::data_types::{
+    AccountQueryRequest,
     DisableOrderEntryRequest, 
     EnableOrderEntryRequest,
-    EnterOrderRequest,
     MassCancelRequest,
-    ModifyOrderRequest,
     ReplaceOrderRequest,
 };
