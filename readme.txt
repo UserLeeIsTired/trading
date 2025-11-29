@@ -1,3 +1,5 @@
+*** The project is still under development ***
+
 For the current project, I will only consider a few request options,
 which include:
     1. Enter order request (Buy/sell)
