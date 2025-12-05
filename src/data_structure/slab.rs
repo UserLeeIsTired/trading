@@ -1,0 +1,73 @@
+use super::node::Node;
+
+
+// using a one time allocation method to create the slab, the arena (nodes) can be stored in the heap
+// Since the allocation part is where the overhead occur, only changing data is much faster operation,
+// and also allow better CPU cache compare to a linked list
+
+pub struct Slab<T> {
+    arena: Vec<T>,
+    available_slot: Vec<usize>,
+}
+
+impl Slab<Node> {
+    // create the arena and available slot with iteration method
+    pub fn new(slab_size: usize) -> Self {
+        Slab {
+            arena: (0..slab_size).map(|_| { Node::new() }).collect(),
+            available_slot: (0..slab_size).collect(),
+        }
+    }
+
+    // this function receive the last node, then update the last node and return the new last index
+    pub fn append_list(&mut self, user_ref_num: u32, quantity: u32, node_ptr: usize) -> usize {
+
+        // this always assume there are available slot, otherwise, God bless you
+        let available_index = self.available_slot.pop().unwrap();
+        
+        // get the current node first
+        let node = &mut self.arena[node_ptr];
+        node.set_next(Some(available_index));
+        
+        // now get the new node to prevent rule violation
+        let available_node = &mut self.arena[available_index];
+        available_node.set_prev(Some(node_ptr));
+        available_node.insert_detail(user_ref_num, quantity);
+
+        // return the new index
+        available_index
+    }   
+
+
+    // try to update prev, next node if they exist, and finally initalize the node
+    pub fn unlink_node(&mut self, node_ptr: usize) {
+        
+        // borrow immutable reference to take the ptr
+        let (prev_ptr, next_ptr) = {
+            let node = &self.arena[node_ptr];
+            (node.get_prev(), node.get_next())
+        };
+
+        // if prev_node is Some, set next ptr
+        if let Some(ptr) = prev_ptr {
+            let prev_node = &mut self.arena[ptr];
+            prev_node.set_next(next_ptr);
+        }
+
+
+        // if next_node is Some, set prev ptr
+        if let Some(ptr) = next_ptr {
+            let next_node = &mut self.arena[ptr];
+            next_node.set_prev(prev_ptr);
+        }
+        
+
+        // initialize
+        let node = &mut self.arena[node_ptr];
+        node.nullify_node();
+
+        // after the node is initialized, it is now available for reusing
+        self.available_slot.push(node_ptr);
+
+    }
+}
