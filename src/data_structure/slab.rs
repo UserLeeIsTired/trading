@@ -20,21 +20,27 @@ impl Slab<Node> {
     }
 
     // this function receive the last node, then update the last node and return the new last index
-    pub fn append_list(&mut self, user_ref_num: u32, quantity: u32, node_ptr: usize) -> usize {
+    pub fn append_list(&mut self, user_ref_num: u32, quantity: u32, node_ptr: Option<usize>) -> usize {
 
         // this always assume there are available slot, otherwise, God bless you
         let available_index = self.available_slot.pop().unwrap();
         
-        // get the current node first
-        let node = &mut self.arena[node_ptr];
-        node.set_next(Some(available_index));
-        
-        // now get the new node to prevent rule violation
-        let available_node = &mut self.arena[available_index];
-        available_node.set_prev(Some(node_ptr));
-        available_node.insert_detail(user_ref_num, quantity);
+        if let Some(node_ptr) = node_ptr {
+            // get the current node first
+            let node = &mut self.arena[node_ptr];
+            node.set_next(Some(available_index));
+            
+            // now get the new node to prevent rule violation
+            let available_node = &mut self.arena[available_index];
+            available_node.set_prev(Some(node_ptr));
+            available_node.insert_detail(user_ref_num, quantity);
 
-        // return the new index
+        }else {
+            // now get the new node to prevent rule violation
+            let available_node = &mut self.arena[available_index];
+            available_node.insert_detail(user_ref_num, quantity);
+        }
+
         available_index
     }   
 
