@@ -1,3 +1,5 @@
+use tokio::sync::futures::Notified;
+
 use super::node::Node;
 
 
@@ -60,14 +62,12 @@ impl Slab<Node> {
             prev_node.set_next(next_ptr);
         }
 
-
         // if next_node is Some, set prev ptr
         if let Some(ptr) = next_ptr {
             let next_node = &mut self.arena[ptr];
             next_node.set_prev(prev_ptr);
         }
         
-
         // initialize
         let node = &mut self.arena[node_ptr];
         node.nullify_node();
@@ -75,5 +75,9 @@ impl Slab<Node> {
         // after the node is initialized, it is now available for reusing
         self.available_slot.push(node_ptr);
 
+    }
+
+    pub fn get_mut_node(&mut self, node_ptr: usize) -> &mut Node {
+        &mut self.arena[node_ptr]
     }
 }
