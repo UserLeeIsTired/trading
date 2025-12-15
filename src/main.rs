@@ -1,157 +1,118 @@
-use std::time::Duration;
-use rand::Rng;
-
 use hft_trading::low_latency_comm::{SPSC, Sender, Receiver};
 use hft_trading::data_ingest::{Parser};
 use hft_trading::data_ingest::ProtocolRequest;
+use hft_trading::price_matcher::{self, PriceMatcher};
 
 
+// --- Constants for Order Protocol Message Generation ---
 
+const PRICE_950_LE: [u8; 8] = [0x24, 0x89, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+const SYMBOL_TSLA: [u8; 8] = [b'T', b'S', b'L', b'A', 0x20, 0x20, 0x20, 0x20]; // "TSLA    "
+
+
+// 1. BUY Order (300 Shares) - Total Buy: 300
+// UserRefNum: 1
 const MESSAGE_1: [u8; 47] = [
-    // Type (Offset 0, Length 1): 'O'
+    // Type: 'O'
     b'O',
-    // UserRefNum (Offset 1, Length 4): 1u32 (Little Endian: 01 00 00 00)
+    // UserRefNum: 1u32
     0x01, 0x00, 0x00, 0x00,
-    // Side (Offset 5, Length 1): 'B' (Buy)
+    // Side: 'B' (Buy)
     b'B',
-    // Quantity (Offset 6, Length 4): 100u32 (Little Endian: 64 00 00 00)
-    100u32.to_le_bytes()[0], 100u32.to_le_bytes()[1], 100u32.to_le_bytes()[2], 100u32.to_le_bytes()[3],
-    // Symbol (Offset 10, Length 8): "GOOG    " (Padded)
-    b'G', b'O', b'O', b'G', 0x20, 0x20, 0x20, 0x20,
-    // Price (Offset 18, Length 8): 100.50 (Scaled u64: 1005000000000000)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Placeholder for scaled price (100.50)
-    // Time In Force (Offset 26, Length 1): '0' (Day)
-    b'0',
-    // Display (Offset 27, Length 1): 'Y' (Visible)
-    b'Y',
-    // Capacity (Offset 28, Length 1): 'A' (Agency)
-    b'A',
-    // InterMarket Sweep Eligibility (Offset 29, Length 1): 'Y' (Eligible)
-    b'Y',
-    // CrossType (Offset 30, Length 1): 'N' (Continuous Market)
-    b'N',
-    // ClOrdID (Offset 31, Length 14): "ID_1            " (Padded)
+    // Quantity: 300u32 (Little Endian: 2C 01 00 00)
+    0x2C, 0x01, 0x00, 0x00, 
+    // Symbol: "TSLA    "
+    SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7],
+    // Price: 950.00
+    PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7],
+    // TIF, Display, Capacity, etc. (Original values retained)
+    b'0', b'Y', b'A', b'Y', b'N', 
     b'I', b'D', b'_', b'1', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-    // Appendage Length (Offset 45, Length 2): 0u16 (No appendage)
     0x00, 0x00,
 ];
 
+// 2. SELL Order (200 Shares) - Total Sell: 200
+// UserRefNum: 2
 const MESSAGE_2: [u8; 47] = [
-    // Type (Offset 0, Length 1): 'O'
+    // Type: 'O'
     b'O',
-    // UserRefNum (Offset 1, Length 4): 2u32
+    // UserRefNum: 2u32
     0x02, 0x00, 0x00, 0x00,
-    // Side (Offset 5, Length 1): 'E' (Sell Short Exempt)
-    b'E',
-    // Quantity (Offset 6, Length 4): 500u32
-    500u32.to_le_bytes()[0], 500u32.to_le_bytes()[1], 500u32.to_le_bytes()[2], 500u32.to_le_bytes()[3],
-    // Symbol (Offset 10, Length 8): "MSFT    "
-    b'M', b'S', b'F', b'T', 0x20, 0x20, 0x20, 0x20,
-    // Price (Offset 18, Length 8): 250.75 (Scaled u64)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    // Time In Force (Offset 26, Length 1): '3' (IOC - Immediate or Cancel)
-    b'3',
-    // Display (Offset 27, Length 1): 'N' (Hidden)
-    b'N',
-    // Capacity (Offset 28, Length 1): 'P' (Principal)
-    b'P',
-    // InterMarket Sweep Eligibility (Offset 29, Length 1): 'N' (Not Eligible)
-    b'N',
-    // CrossType (Offset 30, Length 1): 'N' (Continuous Market)
-    b'N',
-    // ClOrdID (Offset 31, Length 14): "ID_2            "
-    b'I', b'D', b'_', b'2', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-    // Appendage Length (Offset 45, Length 2): 0u16
-    0x00, 0x00,
-];
-
-const MESSAGE_3: [u8; 47] = [
-    // Type (Offset 0, Length 1): 'O'
-    b'O',
-    // UserRefNum (Offset 1, Length 4): 3u32
-    0x03, 0x00, 0x00, 0x00,
-    // Side (Offset 5, Length 1): 'S' (Sell)
+    // Side: 'S' (Sell) - Changed from 'E'
     b'S',
-    // Quantity (Offset 6, Length 4): 1000u32
-    1000u32.to_le_bytes()[0], 1000u32.to_le_bytes()[1], 1000u32.to_le_bytes()[2], 1000u32.to_le_bytes()[3],
-    // Symbol (Offset 10, Length 8): "AMZN    "
-    b'A', b'M', b'Z', b'N', 0x20, 0x20, 0x20, 0x20,
-    // Price (Offset 18, Length 8): 3000.00 (Scaled u64)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    // Time In Force (Offset 26, Length 1): '0' (Day) - Cross orders are usually treated as Day
-    b'0',
-    // Display (Offset 27, Length 1): 'A' (Attributable)
-    b'A',
-    // Capacity (Offset 28, Length 1): 'R' (Riskless)
-    b'R',
-    // InterMarket Sweep Eligibility (Offset 29, Length 1): 'N'
-    b'N',
-    // CrossType (Offset 30, Length 1): 'C' (Closing Cross)
-    b'C',
-    // ClOrdID (Offset 31, Length 14): "ID_3            "
+    // Quantity: 200u32 (Little Endian: C8 00 00 00)
+    0xC8, 0x00, 0x00, 0x00, 
+    // Symbol: "TSLA    "
+    SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7],
+    // Price: 950.00
+    PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7],
+    // TIF, Display, Capacity, etc.
+    b'3', b'N', b'P', b'N', b'N', 
+    b'I', b'D', b'_', b'2', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x00, 0x00,
+];
+
+// 3. SELL Order (500 Shares) - Total Sell: 700
+// UserRefNum: 3
+const MESSAGE_3: [u8; 47] = [
+    // Type: 'O'
+    b'O',
+    // UserRefNum: 3u32
+    0x03, 0x00, 0x00, 0x00,
+    // Side: 'S' (Sell)
+    b'S',
+    // Quantity: 500u32 (Little Endian: F4 01 00 00) - Changed from 1000
+    0xF4, 0x01, 0x00, 0x00, 
+    // Symbol: "TSLA    "
+    SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7],
+    // Price: 950.00
+    PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7],
+    // TIF, Display, Capacity, etc.
+    b'0', b'A', b'R', b'N', b'C', 
     b'I', b'D', b'_', b'3', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-    // Appendage Length (Offset 45, Length 2): 0u16
     0x00, 0x00,
 ];
 
-
+// 4. BUY Order (700 Shares) - Total Buy: 1000
+// UserRefNum: 4
 const MESSAGE_4: [u8; 47] = [
-    // Type (Offset 0, Length 1): 'O'
+    // Type: 'O'
     b'O',
-    // UserRefNum (Offset 1, Length 4): 4u32
+    // UserRefNum: 4u32
     0x04, 0x00, 0x00, 0x00,
-    // Side (Offset 5, Length 1): 'B' (Buy)
+    // Side: 'B' (Buy)
     b'B',
-    // Quantity (Offset 6, Length 4): 50u32
-    50u32.to_le_bytes()[0], 50u32.to_le_bytes()[1], 50u32.to_le_bytes()[2], 50u32.to_le_bytes()[3],
-    // Symbol (Offset 10, Length 8): "BABA    "
-    b'B', b'A', b'B', b'A', 0x20, 0x20, 0x20, 0x20,
-    // Price (Offset 18, Length 8): 10.00 (Scaled u64)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x12, 0x15,
-    // Time In Force (Offset 26, Length 1): 'E' (After Hours)
-    b'E',
-    // Display (Offset 27, Length 1): 'Y'
-    b'Y',
-    // Capacity (Offset 28, Length 1): 'O' (Other)
-    b'O',
-    // InterMarket Sweep Eligibility (Offset 29, Length 1): 'N'
-    b'N',
-    // CrossType (Offset 30, Length 1): 'N' (Continuous Market)
-    b'N',
-    // ClOrdID (Offset 31, Length 14): "ID_4            "
+    // Quantity: 700u32 (Little Endian: BC 02 00 00)
+    0xBC, 0x02, 0x00, 0x00, 
+    // Symbol: "TSLA    "
+    SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7],
+    // Price: 950.00
+    PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7],
+    // TIF, Display, Capacity, etc.
+    b'E', b'Y', b'O', b'N', b'N', 
     b'I', b'D', b'_', b'4', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-    // Appendage Length (Offset 45, Length 2): 0u16
     0x00, 0x00,
 ];
 
-const MESSAGE_5_BASE: [u8; 47] = [
-    // Type (Offset 0, Length 1): 'O'
+const MESSAGE_5: [u8; 47] = [
+    // Type: 'O'
     b'O',
-    // UserRefNum (Offset 1, Length 4): 5u32
+    // UserRefNum: 1u32
     0x05, 0x00, 0x00, 0x00,
-    // Side (Offset 5, Length 1): 'B' (Buy)
-    b'B',
-    // Quantity (Offset 6, Length 4): 200u32
-    200u32.to_le_bytes()[0], 200u32.to_le_bytes()[1], 200u32.to_le_bytes()[2], 200u32.to_le_bytes()[3],
-    // Symbol (Offset 10, Length 8): "AAPL    "
-    b'A', b'A', b'P', b'L', 0x20, 0x20, 0x20, 0x20,
-    // Price (Offset 18, Length 8): 150.00 (Scaled u64)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    // Time In Force (Offset 26, Length 1): '0' (Day)
-    b'0',
-    // Display (Offset 27, Length 1): 'Y'
-    b'Y',
-    // Capacity (Offset 28, Length 1): 'A' (Agency)
-    b'A',
-    // InterMarket Sweep Eligibility (Offset 29, Length 1): 'Y'
-    b'Y',
-    // CrossType (Offset 30, Length 1): 'N' (Continuous Market)
-    b'N',
-    // ClOrdID (Offset 31, Length 14): "ID_5            "
-    b'I', b'D', b'_', b'5', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-    // Appendage Length (Offset 45, Length 2): 9u16 (Length of APPENDAGE_MIN_QTY)
-    9u16.to_le_bytes()[0], 9u16.to_le_bytes()[1],
+    // Side: 'S' (Sell)
+    b'S',
+    // Quantity: 300u32 (Little Endian: 2C 01 00 00)
+    0x2C, 0x01, 0x00, 0x00, 
+    // Symbol: "TSLA    "
+    SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7],
+    // Price: 950.00
+    PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7],
+    // TIF, Display, Capacity, etc. (Original values retained)
+    b'0', b'Y', b'A', b'Y', b'N', 
+    b'I', b'D', b'_', b'1', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x00, 0x00,
 ];
+
 
 // --- Array of all generated messages (for inspection) ---
 // Note: MESSAGE_5 must be handled separately due to its different size (56 bytes)
@@ -163,6 +124,7 @@ fn get_messages() -> Vec<&'static [u8]>{
     messages.push(&MESSAGE_2);
     messages.push(&MESSAGE_3);
     messages.push(&MESSAGE_4);
+    messages.push(&MESSAGE_5);
 
     messages
 }
@@ -177,6 +139,8 @@ fn main() {
     let (tx, rx) = queue.split();
     let messages = get_messages();
     let parser = Parser::new(tx);
+
+    let mut price_matcher = PriceMatcher::new();
 
     // --- Thread 1: Sender (The Producer) ---
     // The 'move' keyword transfers ownership of the 'tx' handle to the new thread.
@@ -197,6 +161,16 @@ fn main() {
                 match item {
                     ProtocolRequest::EnterOrder(order) => {
                         println!("{:?}", order);
+                        if order.side == b'B' {
+                            price_matcher.add_bid_order(order.price as usize, 
+                                order.user_ref_num, 
+                                order.quantity);
+                        }else {
+                            price_matcher.add_ask_order(order.price as usize, 
+                                order.user_ref_num, 
+                                order.quantity);
+                        }
+                        price_matcher.process_order();
                     }
                     _ => continue,
                 }

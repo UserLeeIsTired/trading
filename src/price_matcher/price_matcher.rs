@@ -95,7 +95,7 @@ impl PriceMatcher {
             .get_mut_node(ask_index.unwrap())
             .get_detail();
 
-        if bid_quantity.unwrap() >= ask_quantity.unwrap() {
+        if bid_quantity.unwrap() > ask_quantity.unwrap() {
         
             next_ask_index = self.slab
             .get_mut_node(ask_index.unwrap())
@@ -109,9 +109,15 @@ impl PriceMatcher {
 
             self.slab.unlink_node(ask_index.unwrap());
 
-        }
-        
-        if bid_quantity.unwrap() <= ask_quantity.unwrap() {
+            // temp
+            println!("{} successfully brought {} stocks", 
+            _bid_user_ref.unwrap(),
+            ask_quantity.unwrap());
+            println!("{} successfully sold {} stocks", 
+            _ask_user_ref.unwrap(),
+            ask_quantity.unwrap());
+
+        } else if bid_quantity.unwrap() < ask_quantity.unwrap() {
 
             next_bid_index = self.slab
             .get_mut_node(bid_index.unwrap())
@@ -125,6 +131,32 @@ impl PriceMatcher {
 
             self.slab.unlink_node(bid_index.unwrap());
 
+            // temp
+            println!("{} successfully brought {} stocks", 
+            _bid_user_ref.unwrap(),
+            bid_quantity.unwrap());
+            println!("{} successfully sold {} stocks", 
+            _ask_user_ref.unwrap(),
+            bid_quantity.unwrap());
+
+        } else if bid_quantity.unwrap() == ask_quantity.unwrap() {
+            next_bid_index = self.slab
+            .get_mut_node(bid_index.unwrap())
+            .get_next();
+            
+            next_ask_index = self.slab
+            .get_mut_node(ask_index.unwrap())
+            .get_next();
+
+            self.slab.unlink_node(bid_index.unwrap());
+            self.slab.unlink_node(ask_index.unwrap());
+
+            println!("{} successfully brought {} stocks", 
+            _bid_user_ref.unwrap(),
+            ask_quantity.unwrap());
+            println!("{} successfully sold {} stocks", 
+            _ask_user_ref.unwrap(),
+            ask_quantity.unwrap());
         }
 
         // TODO: Trading confirmation
@@ -132,7 +164,7 @@ impl PriceMatcher {
         (next_bid_index, next_ask_index)
     }
 
-    fn process_order(&mut self) {
+    pub fn process_order(&mut self) {
         while self.max_bid >= self.min_ask {
             
             while self.max_bid > 0 && self.max_bid >= self.min_ask && self.bids[self.max_bid].0.is_none() {
