@@ -14,11 +14,11 @@ const SLAB_SIZE: usize = 10_000_000;
 // slab, where the orders are holded, inside bid ask, there are only 2 fields, representing the
 // index of (head, tail)
 pub struct PriceMatcher {
-    slab: Slab<Node>,
-    bids: Vec<(Option<usize>, Option<usize>)>,
-    asks: Vec<(Option<usize>, Option<usize>)>,
-    max_bid: usize,
-    min_ask: usize
+    pub slab: Slab<Node>,
+    pub bids: Vec<(Option<usize>, Option<usize>)>,
+    pub asks: Vec<(Option<usize>, Option<usize>)>,
+    pub max_bid: usize,
+    pub min_ask: usize
 }
 
 impl PriceMatcher {
