@@ -157,10 +157,8 @@ fn main() {
         loop {
             match rx.recv() {
             Ok(item) => {
-                println!("[Receiver] Received");
                 match item {
                     ProtocolRequest::EnterOrder(order) => {
-                        println!("{:?}", order);
                         if order.side == b'B' {
                             price_matcher.add_bid_order(order.price as usize, 
                                 order.user_ref_num, 
