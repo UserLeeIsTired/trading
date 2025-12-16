@@ -36,7 +36,7 @@ impl <T> SPSC<T> {
         // get the current index, store item, update index to index += 1
 
         let tail = self.tail_index.load(Ordering::Relaxed);
-        let next_index = (tail + 1) % BUFFER_CAPACITY;    
+        let next_index = (tail + 1) & (BUFFER_CAPACITY - 1);    
 
         if next_index == self.head_index.load(Ordering::Acquire) {
             return Err(());
@@ -59,7 +59,7 @@ impl <T> SPSC<T> {
         // get the current index, get item, update index to index += 1
 
         let head = self.head_index.load(Ordering::Relaxed);
-        let next_index = (head + 1) % BUFFER_CAPACITY;
+        let next_index = (head + 1) & (BUFFER_CAPACITY - 1);
 
         if head == self.tail_index.load(Ordering::Acquire) {
             return Err(());
