@@ -1,5 +1,3 @@
-use tokio::sync::futures::Notified;
-
 use super::node::Node;
 
 
