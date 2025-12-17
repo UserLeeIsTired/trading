@@ -72,6 +72,13 @@ impl PriceMatcher {
 
     }
 
+    pub fn cancel_order (
+        &mut self,
+        node_ptr: usize
+    ) {
+        self.slab.unlink_node(node_ptr);
+    }
+
     fn consume_node(
         &mut self, 
         bid_index: Option<usize>, 
