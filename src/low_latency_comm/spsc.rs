@@ -5,12 +5,15 @@ use std::mem::MaybeUninit;
 use super::{receiver::Receiver, sender::Sender};
 
 const BUFFER_CAPACITY: usize = 16384;
+const MASK: usize = BUFFER_CAPACITY - 1;
 
 // The spsc queue is a thread safety, only one consumer and one producer
 
 pub struct SPSC<T> {
     // head and tail index is like a critical section, due to data racing, we must use atomic
     buffer: [UnsafeCell<MaybeUninit<T>>; BUFFER_CAPACITY],
+    // added a reference count, when both consumer and producer are dropped, the queue should also be dropped
+    pub reference_count: AtomicUsize,
     head_index: AtomicUsize,
     tail_index: AtomicUsize,
 }
@@ -27,7 +30,7 @@ impl <T> SPSC<T> {
             MaybeUninit::uninit().assume_init()
         };
 
-        SPSC { buffer, head_index: AtomicUsize::new(0), tail_index: AtomicUsize::new(0) }
+        SPSC { buffer, reference_count: AtomicUsize::new(2), head_index: AtomicUsize::new(0), tail_index: AtomicUsize::new(0) }
     }
     
     // pushing item into the buffer
@@ -36,7 +39,7 @@ impl <T> SPSC<T> {
         // get the current index, store item, update index to index += 1
 
         let tail = self.tail_index.load(Ordering::Relaxed);
-        let next_index = (tail + 1) & (BUFFER_CAPACITY - 1);    
+        let next_index = (tail + 1) & MASK;    
 
         if next_index == self.head_index.load(Ordering::Acquire) {
             return Err(());
@@ -59,7 +62,7 @@ impl <T> SPSC<T> {
         // get the current index, get item, update index to index += 1
 
         let head = self.head_index.load(Ordering::Relaxed);
-        let next_index = (head + 1) & (BUFFER_CAPACITY - 1);
+        let next_index = (head + 1) & MASK;
 
         if head == self.tail_index.load(Ordering::Acquire) {
             return Err(());
