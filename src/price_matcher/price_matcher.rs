@@ -74,9 +74,9 @@ impl PriceMatcher {
 
     pub fn cancel_order (
         &mut self,
-        node_ptr: usize
+        user_ref_num: u32,
     ) {
-        self.slab.unlink_node(node_ptr);
+        self.slab.unlink_by_user_ref_num(user_ref_num);
     }
 
     fn consume_node(

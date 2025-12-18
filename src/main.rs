@@ -1,7 +1,7 @@
-use hft_trading::low_latency_comm::{SPSC, Sender, Receiver};
+use hft_trading::low_latency_comm::{SPSC};
 use hft_trading::data_ingest::{Parser};
 use hft_trading::data_ingest::ProtocolRequest;
-use hft_trading::price_matcher::{self, PriceMatcher};
+use hft_trading::price_matcher::{PriceMatcher};
 
 
 // --- Constants for Order Protocol Message Generation ---
