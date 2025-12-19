@@ -24,7 +24,7 @@ impl Slab<Node> {
     }
 
     // this function receive the last node, then update the last node and return the new last index
-    pub fn append_list(&mut self, user_ref_num: u32, quantity: u32, node_ptr: Option<usize>) -> usize {
+    pub fn append_list(&mut self, user_ref_num: u32, quantity: u32, price: usize, side: char, node_ptr: Option<usize>) -> usize {
 
         // this always assume there are available slot, otherwise, God bless you
         let available_index = self.available_slot.pop().unwrap();
@@ -37,12 +37,19 @@ impl Slab<Node> {
             // now get the new node to prevent rule violation
             let available_node = &mut self.arena[available_index];
             available_node.set_prev(Some(node_ptr));
-            available_node.insert_detail(user_ref_num, quantity);
+            available_node.set_user_ref_num(user_ref_num);
+            available_node.set_quantity(quantity);
+            available_node.set_price(price);
+            available_node.set_side(side);
 
         }else {
             // now get the new node to prevent rule violation
             let available_node = &mut self.arena[available_index];
-            available_node.insert_detail(user_ref_num, quantity);
+            available_node.set_user_ref_num(user_ref_num);
+            available_node.set_quantity(quantity);
+            available_node.set_price(price);
+            available_node.set_side(side);
+
         }
 
 
@@ -90,9 +97,9 @@ impl Slab<Node> {
 
     pub fn unlink_by_user_ref_num(&mut self, user_ref_num: u32) {
         
-        let some_node_ptr = self.hashmap.get(&user_ref_num);
+        let some_node_ptr = self.hashmap.remove(&user_ref_num);
 
-        if let Some(&node_ptr) = some_node_ptr {
+        if let Some(node_ptr) = some_node_ptr {
             // borrow immutable reference to take the ptr
             let (prev_ptr, next_ptr) = {
                 let node = &self.arena[node_ptr];
@@ -120,6 +127,15 @@ impl Slab<Node> {
 
         }
 
+    }
+
+    pub fn get_mut_node_by_user_ref_nums(&mut self, user_ref_num: u32) -> Option<&mut Node> {
+        let node_ptr = self.hashmap.get(&user_ref_num);
+        
+        match node_ptr {
+            Some(&node_ptr) => Some(&mut self.arena[node_ptr]),
+            None => None
+        }
     }
 
     pub fn get_mut_node(&mut self, node_ptr: usize) -> &mut Node {
