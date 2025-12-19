@@ -80,7 +80,6 @@ impl<'a> Parser<ProtocolRequest<'a>> {
                 return;
             }
             };
-
             let _ = self.sender.send(request);
         }
 }
