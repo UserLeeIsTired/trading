@@ -129,7 +129,7 @@ impl Slab<Node> {
 
     }
 
-    pub fn get_mut_node_by_user_ref_nums(&mut self, user_ref_num: u32) -> Option<&mut Node> {
+    pub fn get_mut_node_by_user_ref_num(&mut self, user_ref_num: u32) -> Option<&mut Node> {
         let node_ptr = self.hashmap.get(&user_ref_num);
         
         match node_ptr {
@@ -138,7 +138,20 @@ impl Slab<Node> {
         }
     }
 
+    pub fn get_node_by_user_ref_num(&self, user_ref_num: u32) -> Option<&Node> {
+        let node_ptr = self.hashmap.get(&user_ref_num);
+        
+        match node_ptr {
+            Some(&node_ptr) => Some(&self.arena[node_ptr]),
+            None => None
+        }
+    }
+
     pub fn get_mut_node(&mut self, node_ptr: usize) -> &mut Node {
         &mut self.arena[node_ptr]
+    }
+
+    pub fn get_node(&self, node_ptr: usize) -> &Node {
+        &self.arena[node_ptr]
     }
 }

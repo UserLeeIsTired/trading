@@ -3,7 +3,6 @@
 // In real world application, such abstraction will introduce overhead and
 // should be eliminated to provide even better performance.
 
-
 use crate::data_structure::{Node, Slab};
 
 // Let assume the all stock price is in the range [0, 2500.00] due to device limitation
@@ -73,10 +72,33 @@ impl PriceMatcher {
     }
 
     pub fn cancel_order(
-        &mut self,
-        user_ref_num: u32,
+        &mut self, 
+        user_ref_num: u32
     ) {
-        self.slab.unlink_by_user_ref_num(user_ref_num);
+        let meta = self.slab.get_mut_node_by_user_ref_num(user_ref_num)
+            .map(|n| (n.get_price().unwrap(), n.get_side().unwrap(), n.get_prev(), n.get_next()));
+        
+        if let Some((price, side, prev_ptr, next_ptr)) = meta {
+            
+            let book =  if side == 'B' { &mut self.bids } else { &mut self.asks };
+            let (ref mut head, ref mut tail) = book[price];
+
+            let target_node = self.slab.get_node_by_user_ref_num(user_ref_num).unwrap();
+
+            if let Some(head_idx) = *head {
+                if std::ptr::eq(self.slab.get_node(head_idx), target_node) {
+                    *head = next_ptr;
+                }
+            }
+
+            if let Some(tail_idx) = *tail {
+                if std::ptr::eq(self.slab.get_node(tail_idx), target_node) {
+                    *tail = prev_ptr;
+                }
+            }
+            
+            self.slab.unlink_by_user_ref_num(user_ref_num);
+        }
     }
 
     pub fn update_order(
@@ -86,7 +108,7 @@ impl PriceMatcher {
         new_price: usize,
         new_side: char,
     ) {
-        let node = self.slab.get_mut_node_by_user_ref_nums(user_ref_num);
+        let node = self.slab.get_mut_node_by_user_ref_num(user_ref_num);
         
         if let Some(node) = node {
             let (old_quantity, 
