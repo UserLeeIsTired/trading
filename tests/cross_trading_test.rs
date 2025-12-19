@@ -64,9 +64,9 @@ mod integration_tests {
                             let price_index: usize = order.price.try_into().unwrap_or(0); 
 
                             if order.side == b'B' {
-                                price_matcher.add_bid_order(price_index, order.user_ref_num, order.quantity);
+                                price_matcher.add_bid_order(order.user_ref_num, order.quantity, price_index);
                             } else {
-                                price_matcher.add_ask_order(price_index, order.user_ref_num, order.quantity);
+                                price_matcher.add_ask_order(order.user_ref_num, order.quantity, price_index);
                             }
                             price_matcher.process_order(); 
                         }

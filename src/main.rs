@@ -159,14 +159,19 @@ fn main() {
             Ok(item) => {
                 match item {
                     ProtocolRequest::EnterOrder(order) => {
+                        println!("{:?}", order);
                         if order.side == b'B' {
-                            price_matcher.add_bid_order(order.price as usize, 
+                            price_matcher.add_bid_order( 
                                 order.user_ref_num, 
-                                order.quantity);
+                                order.quantity,
+                                order.price as usize
+                            );
                         }else {
-                            price_matcher.add_ask_order(order.price as usize, 
+                            price_matcher.add_ask_order(
                                 order.user_ref_num, 
-                                order.quantity);
+                                order.quantity,
+                                order.price as usize
+                            );
                         }
                         price_matcher.process_order();
                     }
