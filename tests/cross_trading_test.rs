@@ -7,8 +7,8 @@ use hft_trading::{
 
 // --- Constants (Required for the test to assert the outcome) ---
 
-// The price index where the trades should occur (Assuming 950.00 maps to 95000)
-const CROSS_PRICE_INDEX: usize = 95000; 
+// The price index where the trades should occur (Assuming 351.08 maps to 35108)
+const CROSS_PRICE_INDEX: usize = 35108; 
 
 // The Price 950.00 represented as Little Endian bytes (as defined in your setup)
 const PRICE_950_LE: [u8; 8] = [0x24, 0x89, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
