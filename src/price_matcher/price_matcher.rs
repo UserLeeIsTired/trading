@@ -34,15 +34,15 @@ impl PriceMatcher {
 
     pub fn add_bid_order(
         &mut self, 
-        price: usize, 
         user_ref_num: u32, 
-        quantity: u32
+        quantity: u32,
+        price: usize, 
     ) {
         if price > self.max_bid {
             self.max_bid = price;
         }
         
-        let new_tail = self.slab.append_list(user_ref_num, quantity, self.bids[price].1);
+        let new_tail = self.slab.append_list(user_ref_num, quantity, price, 'B', self.bids[price].1);
 
         if self.bids[price].0.is_none() {
             self.bids[price].0 = Some(new_tail);
@@ -54,15 +54,15 @@ impl PriceMatcher {
 
     pub fn add_ask_order(
         &mut self, 
-        price: usize, 
         user_ref_num: u32, 
-        quantity: u32
+        quantity: u32,
+        price: usize, 
     ) {
         if price < self.min_ask {
             self.min_ask = price;
         }
         
-        let new_tail = self.slab.append_list(user_ref_num, quantity, self.asks[price].1);
+        let new_tail = self.slab.append_list(user_ref_num, quantity, price, 'S', self.asks[price].1);
 
         if self.asks[price].0.is_none() {
             self.asks[price].0 = Some(new_tail);
@@ -72,11 +72,44 @@ impl PriceMatcher {
 
     }
 
-    pub fn cancel_order (
+    pub fn cancel_order(
         &mut self,
         user_ref_num: u32,
     ) {
         self.slab.unlink_by_user_ref_num(user_ref_num);
+    }
+
+    pub fn update_order(
+        &mut self,
+        user_ref_num: u32,
+        new_quantity: u32,
+        new_price: usize,
+        new_side: char,
+    ) {
+        let node = self.slab.get_mut_node_by_user_ref_nums(user_ref_num);
+        
+        if let Some(node) = node {
+            let (old_quantity, 
+                old_price, 
+                old_side) = 
+                (node.get_quantity(), 
+                node.get_price(), 
+                node.get_side()
+            );
+
+            if old_quantity.unwrap() < new_quantity 
+            || old_price.unwrap() != new_price 
+            || old_side.unwrap() != new_side {
+                self.cancel_order(user_ref_num);
+                match new_side {
+                    'B' => self.add_bid_order(user_ref_num, new_quantity, new_price),
+                    'S' => self.add_ask_order(user_ref_num, new_quantity, new_price),
+                    _ => ()
+                }
+            }else {
+                node.set_quantity(new_quantity);
+            }
+        }
     }
 
     fn consume_node(
@@ -85,22 +118,18 @@ impl PriceMatcher {
         ask_index: Option<usize>
     ) -> (Option<usize>, Option<usize>) {
     
-        let (mut next_bid_index, 
-            mut next_ask_index)
-            = (bid_index, ask_index);
+        let (mut next_bid_index, mut next_ask_index) = (bid_index, ask_index);
 
         // user_ref is used to send confirmation but ignored for now
-        let (_bid_user_ref, 
-            bid_quantity) 
-            = self.slab
-            .get_mut_node(bid_index.unwrap())
-            .get_detail();
-        
-        let (_ask_user_ref, 
-            ask_quantity)
-            = self.slab
-            .get_mut_node(ask_index.unwrap())
-            .get_detail();
+        let (_bid_user_ref, bid_quantity) = {
+            let node = self.slab.get_mut_node(bid_index.unwrap());
+            (node.get_user_ref_num(), node.get_quantity())
+        };
+
+        let (_ask_user_ref, ask_quantity) = {
+            let node = self.slab.get_mut_node(ask_index.unwrap());
+            (node.get_user_ref_num(), node.get_quantity())
+        };
 
         if bid_quantity.unwrap() > ask_quantity.unwrap() {
         
@@ -109,13 +138,12 @@ impl PriceMatcher {
             .get_next();
 
             self.slab.get_mut_node(bid_index.unwrap())
-            .insert_detail(
-            _bid_user_ref.unwrap(), 
+            .set_quantity(
             bid_quantity.unwrap() - ask_quantity.unwrap()
             );
 
             self.slab.unlink_node(ask_index.unwrap());
-
+            
             // temp
             println!("{} successfully brought {} stocks", 
             _bid_user_ref.unwrap(),
@@ -131,8 +159,7 @@ impl PriceMatcher {
             .get_next();
 
             self.slab.get_mut_node(ask_index.unwrap())
-            .insert_detail(
-            _ask_user_ref.unwrap(), 
+            .set_quantity(
             ask_quantity.unwrap() - bid_quantity.unwrap()
             );
 
@@ -157,7 +184,8 @@ impl PriceMatcher {
 
             self.slab.unlink_node(bid_index.unwrap());
             self.slab.unlink_node(ask_index.unwrap());
-
+            
+            // temp
             println!("{} successfully brought {} stocks", 
             _bid_user_ref.unwrap(),
             ask_quantity.unwrap());
