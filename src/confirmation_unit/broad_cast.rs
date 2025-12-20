@@ -1,5 +1,3 @@
-use crate::data_structure::Slab;
-
 const MESSAGE_QUEUE_SIZE: usize = 10000;
 
 
