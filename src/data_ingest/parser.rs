@@ -20,7 +20,7 @@ impl<'a> Parser<ProtocolRequest<'a>> {
     }
     pub fn parse(&self, bytes: &'a[u8]) {
         if bytes.is_empty() {
-            eprintln!("Error: Received empty byte slice");
+            // eprintln!("Error: Received empty byte slice");
             return;
         }
 
@@ -76,10 +76,10 @@ impl<'a> Parser<ProtocolRequest<'a>> {
                 ProtocolRequest::AccountQuery(reference)
             },
             _ => {
-                eprintln!("Error: Unknown request type: {}", request_type as char);
+                // eprintln!("Error: Unknown request type: {}", request_type as char);
                 return;
             }
             };
-            let _ = self.sender.send(request);
+            let _ = self.sender.try_send(request);
         }
 }

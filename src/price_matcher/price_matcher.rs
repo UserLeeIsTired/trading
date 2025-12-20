@@ -167,12 +167,8 @@ impl PriceMatcher {
             self.slab.unlink_node(ask_index.unwrap());
             
             // temp
-            println!("{} successfully brought {} stocks", 
-            _bid_user_ref.unwrap(),
-            ask_quantity.unwrap());
-            println!("{} successfully sold {} stocks", 
-            _ask_user_ref.unwrap(),
-            ask_quantity.unwrap());
+            // println!("{} successfully brought {} stocks", _bid_user_ref.unwrap(), ask_quantity.unwrap());
+            // println!("{} successfully sold {} stocks", _ask_user_ref.unwrap(), ask_quantity.unwrap());
 
         } else if bid_quantity.unwrap() < ask_quantity.unwrap() {
 
@@ -188,12 +184,8 @@ impl PriceMatcher {
             self.slab.unlink_node(bid_index.unwrap());
 
             // temp
-            println!("{} successfully brought {} stocks", 
-            _bid_user_ref.unwrap(),
-            bid_quantity.unwrap());
-            println!("{} successfully sold {} stocks", 
-            _ask_user_ref.unwrap(),
-            bid_quantity.unwrap());
+            // println!("{} successfully brought {} stocks", _bid_user_ref.unwrap(), bid_quantity.unwrap());
+            // println!("{} successfully sold {} stocks", _ask_user_ref.unwrap(), bid_quantity.unwrap());
 
         } else if bid_quantity.unwrap() == ask_quantity.unwrap() {
             next_bid_index = self.slab
@@ -208,12 +200,8 @@ impl PriceMatcher {
             self.slab.unlink_node(ask_index.unwrap());
             
             // temp
-            println!("{} successfully brought {} stocks", 
-            _bid_user_ref.unwrap(),
-            ask_quantity.unwrap());
-            println!("{} successfully sold {} stocks", 
-            _ask_user_ref.unwrap(),
-            ask_quantity.unwrap());
+            // println!("{} successfully brought {} stocks", _bid_user_ref.unwrap(), ask_quantity.unwrap());
+            // println!("{} successfully sold {} stocks", _ask_user_ref.unwrap(), ask_quantity.unwrap());
         }
 
         // TODO: Trading confirmation
