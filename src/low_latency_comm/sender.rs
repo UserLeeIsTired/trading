@@ -1,6 +1,7 @@
 use std::{sync::atomic::Ordering};
 
 use super::spsc::SPSC;
+use super::error::{SenderError};
 
 pub struct Sender<T> {
     queue: *const SPSC<T>,
@@ -15,11 +16,22 @@ impl <T> Sender<T> {
         }
     }
 
-    pub fn send(&self, item: T) -> Result<(), ()> {
+    pub fn try_send(&self, item: T) -> Result<(), SenderError> {
         let core_queue = unsafe {
             &(*self.queue)
         };
-        core_queue.try_push(item)
+        let result = core_queue.try_push(item);
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(_) => unsafe {
+                if (&*self.queue).check_other_component_disconnected() {
+                    return Err(SenderError::ReceiverDisconnected);
+                }else {
+                    return Err(SenderError::Full);
+                }
+            },
+        }
     }
 }
 

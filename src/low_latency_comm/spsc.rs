@@ -3,6 +3,7 @@ use std::cell::UnsafeCell;
 use std::mem::MaybeUninit;
 
 use super::{receiver::Receiver, sender::Sender};
+use super::error::SPSCError;
 
 const BUFFER_CAPACITY: usize = 16384;
 const MASK: usize = BUFFER_CAPACITY - 1;
@@ -34,7 +35,7 @@ impl <T> SPSC<T> {
     }
     
     // pushing item into the buffer
-    pub fn try_push(&self, item: T) -> Result<(), ()> {
+    pub fn try_push(&self, item: T) -> Result<(), SPSCError> {
         
         // get the current index, store item, update index to index += 1
 
@@ -42,7 +43,7 @@ impl <T> SPSC<T> {
         let next_index = (tail + 1) & MASK;    
 
         if next_index == self.head_index.load(Ordering::Acquire) {
-            return Err(());
+            return Err(SPSCError::Full);
         }
 
         unsafe {
@@ -57,7 +58,7 @@ impl <T> SPSC<T> {
 
     // pop item from the buffer
 
-    pub fn try_pop(&self) -> Result<T, ()> {
+    pub fn try_pop(&self) -> Result<T, SPSCError> {
 
         // get the current index, get item, update index to index += 1
 
@@ -65,7 +66,7 @@ impl <T> SPSC<T> {
         let next_index = (head + 1) & MASK;
 
         if head == self.tail_index.load(Ordering::Acquire) {
-            return Err(());
+            return Err(SPSCError::Empty);
         }
 
         unsafe {
@@ -86,5 +87,12 @@ impl <T> SPSC<T> {
         let receiver = Receiver::new(core_queue);
 
         (sender, receiver)
+    }
+
+
+    // return true if one of them is disconnected, otherwise false
+    pub fn check_other_component_disconnected(&self) -> bool {
+        let connected_component = self.reference_count.load(Ordering::Relaxed);
+        connected_component < 2
     }
 }

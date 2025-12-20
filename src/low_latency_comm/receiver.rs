@@ -1,6 +1,7 @@
 use std::{sync::atomic::Ordering};
 
 use super::spsc::{SPSC};
+use super::error::{ReceiverError};
 
 pub struct Receiver<T> {
     queue: *const SPSC<T>,
@@ -15,12 +16,25 @@ impl <T> Receiver<T> {
         }
     }
 
-    pub fn recv(&self) -> Result<T, ()> {
+    pub fn try_recv(&self) -> Result<T, ReceiverError> {
         let core_queue = unsafe {
             &(*self.queue)
         };
 
-        core_queue.try_pop()
+        let result = core_queue.try_pop();
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(_) => {
+                unsafe {
+                    if (&*self.queue).check_other_component_disconnected() {
+                        return Err(ReceiverError::SenderDisconnected);
+                    } else {
+                        return Err(ReceiverError::Empty);
+                    }
+                }
+            } 
+        }
     }
 }
 
