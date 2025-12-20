@@ -155,7 +155,7 @@ fn main() {
     // The 'move' keyword transfers ownership of the 'rx' handle to the new thread.
     let consumer_thread = std::thread::spawn(move || {
         loop {
-            match rx.recv() {
+            match rx.try_recv() {
             Ok(item) => {
                 match item {
                     ProtocolRequest::EnterOrder(order) => {
@@ -178,7 +178,7 @@ fn main() {
                 }
                 
                 },
-                Err(()) => continue,
+                Err(_) => continue,
             }
         }
     });

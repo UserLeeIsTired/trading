@@ -1,8 +1,17 @@
 use hft_trading::{
     data_ingest::{ProtocolRequest, Parser},
-    low_latency_comm::{SPSC},
-    price_matcher::PriceMatcher
+    low_latency_comm::{SPSC, ReceiverError},
+    price_matcher::PriceMatcher,
 };
+
+// For this current test, there would be order cancelling with the following order
+// 1. BUY (300) : (buy: 300, sell: 0)
+// 2. SELL (200) : (buy: 100, sell: 0)
+// 3. Cancel order 1 : (buy: 0, sell: 0)
+// 3. SELL (500) : (buy: 0, sell: 500)
+// 4. BUY (700) : (buy: 200, sell: 0)
+// 5. SELL (300) : (buy: 0, sell: 100)
+// The expected result is there are still 1 selling order remains
 
 
 // --- Constants (Required for the test to assert the outcome) ---
@@ -15,7 +24,7 @@ const PRICE_950_LE: [u8; 8] = [0x24, 0x89, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 const SYMBOL_TSLA: [u8; 8] = [b'T', b'S', b'L', b'A', 0x20, 0x20, 0x20, 0x20]; 
 
 
-// 1. BUY (300) | 2. SELL (200) | 3. SELL (500) | 4. BUY (700) | 5. SELL (300)
+// 1. BUY (300) | 2. SELL (200) | 3. Cancel order 1 | 3. SELL (500) | 4. BUY (700) | 5. SELL (300)
 const MESSAGE_1: [u8; 47] = [b'O', 0x01, 0x00, 0x00, 0x00, b'B', 0x2C, 0x01, 0x00, 0x00, SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7], PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7], b'0', b'Y', b'A', b'Y', b'N', b'I', b'D', b'_', b'1', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00,];
 const MESSAGE_2: [u8; 47] = [b'O', 0x02, 0x00, 0x00, 0x00, b'S', 0xC8, 0x00, 0x00, 0x00, SYMBOL_TSLA[0], SYMBOL_TSLA[1], SYMBOL_TSLA[2], SYMBOL_TSLA[3], SYMBOL_TSLA[4], SYMBOL_TSLA[5], SYMBOL_TSLA[6], SYMBOL_TSLA[7], PRICE_950_LE[0], PRICE_950_LE[1], PRICE_950_LE[2], PRICE_950_LE[3], PRICE_950_LE[4], PRICE_950_LE[5], PRICE_950_LE[6], PRICE_950_LE[7], b'3', b'N', b'P', b'N', b'N', b'I', b'D', b'_', b'2', 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00,];
 const MESSAGE_1_CANCEL: [u8; 11] = [b'X', 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00];
@@ -58,11 +67,11 @@ mod integration_tests {
             let mut price_matcher = PriceMatcher::new();
 
             loop {
-                match rx.recv() {
+                match rx.try_recv() {
                     Ok(item) => {
                         if let ProtocolRequest::EnterOrder(order) = item {
                             // Convert price to the index (u64 -> usize)
-                            println!("{:?}", order);
+                            // println!("{:?}", order);
                             let price_index: usize = order.price.try_into().unwrap_or(0); 
 
                             if order.side == b'B' {
@@ -74,15 +83,19 @@ mod integration_tests {
                         }
 
                         if let ProtocolRequest::CancelOrder(order) = item {
-                            println!("{:?}", order);
+                            // println!("{:?}", order);
                             let user_ref_num: u32 = order.user_ref_num;
                             price_matcher.cancel_order(user_ref_num);
                         }
                     },
-                    Err(_) => {
-                        println!("Exit");
-                        break
-                    }, // Exit when SPSC channel is closed and empty
+                    Err(ReceiverError::Empty) => {
+                        println!("Empty queue");
+                        continue;
+                    },
+                    Err(ReceiverError::SenderDisconnected) => {
+                        println!("Sender has been disconnected");
+                        break;
+                    }
                 }
             }
             
@@ -94,7 +107,7 @@ mod integration_tests {
         producer_thread.join().unwrap();
         let final_matcher = done_rx.recv().expect("Failed to retrieve final matcher state.");
         
-        // Total Buy (1000) matched Total Sell (1000) at CROSS_PRICE_INDEX.
+        // Total Buy (900) matched Total Sell (1000) at CROSS_PRICE_INDEX.
         
         // 1. Assert the market is cleared (BBO spread exists)
         assert!(
@@ -103,19 +116,37 @@ mod integration_tests {
             final_matcher.max_bid, final_matcher.min_ask
         );
 
-        // 2. Assert the cross price level is entirely empty
+        // 2. Assert the bid is empty but ask is not
         assert!(
             final_matcher.bids[CROSS_PRICE_INDEX].0.is_none(),
             "Bid side at cross price {} should be empty after trade.",
             CROSS_PRICE_INDEX
         );
+
+        assert!(
+            final_matcher.bids[CROSS_PRICE_INDEX].1.is_none(),
+            "Bid side at cross price {} should be empty after trade.",
+            CROSS_PRICE_INDEX
+        );
         
         assert!(
-            final_matcher.asks[CROSS_PRICE_INDEX].0.is_none(),
-            "Ask side at cross price {} should be empty after trade.",
+            final_matcher.asks[CROSS_PRICE_INDEX].0.is_some(),
+            "Ask side at cross price {} should not be empty after trade.",
             CROSS_PRICE_INDEX
         );
 
-        println!("Test Passed: Full 1000 share cross-trade successfully executed and book cleared at index {}.", CROSS_PRICE_INDEX);
+        assert!(
+            final_matcher.asks[CROSS_PRICE_INDEX].1.is_some(),
+            "Ask side at cross price {} should not be empty after trade.",
+            CROSS_PRICE_INDEX
+        );
+
+        // 3. Check if the head index == tail index for the ask order
+
+        assert!(
+            final_matcher.asks[CROSS_PRICE_INDEX].0 == final_matcher.asks[CROSS_PRICE_INDEX].1,
+            "The head index and tail index should be the same.",
+        );
+        
     }
 }

@@ -1,6 +1,6 @@
 use hft_trading::{
     data_ingest::{ProtocolRequest, Parser},
-    low_latency_comm::{SPSC},
+    low_latency_comm::{SPSC, ReceiverError},
     price_matcher::PriceMatcher
 };
 
@@ -57,7 +57,7 @@ mod integration_tests {
             let mut price_matcher = PriceMatcher::new();
 
             loop {
-                match rx.recv() {
+                match rx.try_recv() {
                     Ok(item) => {
                         if let ProtocolRequest::EnterOrder(order) = item {
                             // Convert price to the index (u64 -> usize)
@@ -71,10 +71,14 @@ mod integration_tests {
                             price_matcher.process_order(); 
                         }
                     },
-                    Err(_) => {
-                        println!("Exit");
-                        break
-                    }, // Exit when SPSC channel is closed and empty
+                    Err(ReceiverError::Empty) => {
+                        println!("Empty queue");
+                        continue;
+                    },
+                    Err(ReceiverError::SenderDisconnected) => {
+                        println!("Sender has been disconnected");
+                        break;
+                    } // Exit when SPSC channel is closed and empty
                 }
             }
             
