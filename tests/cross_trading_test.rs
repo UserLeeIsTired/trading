@@ -53,7 +53,7 @@ mod integration_tests {
         });
 
         // --- Consumer Thread (Runs the matching engine logic) ---
-        let consumer_thread = thread::spawn(move || {
+        let _consumer_thread = thread::spawn(move || {
             let mut price_matcher = PriceMatcher::new();
 
             loop {
