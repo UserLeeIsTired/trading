@@ -75,29 +75,31 @@ impl PriceMatcher {
         &mut self, 
         user_ref_num: u32
     ) {
-        let meta = self.slab.get_mut_node_by_user_ref_num(user_ref_num)
-            .map(|n| (n.get_price().unwrap(), n.get_side().unwrap(), n.get_prev(), n.get_next()));
+
+        let target_node = self.slab.get_node_by_user_ref_num(user_ref_num);
+
+        let meta = target_node
+            .map(|(_, n)| (n.get_price().unwrap(), n.get_side().unwrap(), n.get_prev(), n.get_next()));
         
         if let Some((price, side, prev_ptr, next_ptr)) = meta {
+            let (idx, node)= target_node.unwrap();
             
             let book =  if side == 'B' { &mut self.bids } else { &mut self.asks };
             let (ref mut head, ref mut tail) = book[price];
 
-            let target_node = self.slab.get_node_by_user_ref_num(user_ref_num).unwrap();
-
             if let Some(head_idx) = *head {
-                if std::ptr::eq(self.slab.get_node(head_idx), target_node) {
+                if std::ptr::eq(self.slab.get_node(head_idx), node) {
                     *head = next_ptr;
                 }
             }
 
             if let Some(tail_idx) = *tail {
-                if std::ptr::eq(self.slab.get_node(tail_idx), target_node) {
+                if std::ptr::eq(self.slab.get_node(tail_idx), node) {
                     *tail = prev_ptr;
                 }
             }
             
-            self.slab.unlink_by_user_ref_num(user_ref_num);
+            self.slab.unlink_node(idx);
         }
     }
 
@@ -110,7 +112,7 @@ impl PriceMatcher {
     ) {
         let node = self.slab.get_mut_node_by_user_ref_num(user_ref_num);
         
-        if let Some(node) = node {
+        if let Some((_, node)) = node {
             let (old_quantity, 
                 old_price, 
                 old_side) = 

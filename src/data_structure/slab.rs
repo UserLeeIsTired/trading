@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::data_structure::node;
+
 use super::node::Node;
 
 
@@ -90,6 +92,7 @@ impl Slab<Node> {
         if let Some(user_ref_num) = user_ref_num {
             let _ = self.hashmap.remove(&user_ref_num);
         }
+
         // after the node is initialized, it is now available for reusing
         self.available_slot.push(node_ptr);
 
@@ -129,20 +132,20 @@ impl Slab<Node> {
 
     }
 
-    pub fn get_mut_node_by_user_ref_num(&mut self, user_ref_num: u32) -> Option<&mut Node> {
+    pub fn get_mut_node_by_user_ref_num(&mut self, user_ref_num: u32) -> Option<(usize, &mut Node)> {
         let node_ptr = self.hashmap.get(&user_ref_num);
         
         match node_ptr {
-            Some(&node_ptr) => Some(&mut self.arena[node_ptr]),
+            Some(&node_ptr) => Some((node_ptr, &mut self.arena[node_ptr])),
             None => None
         }
     }
 
-    pub fn get_node_by_user_ref_num(&self, user_ref_num: u32) -> Option<&Node> {
+    pub fn get_node_by_user_ref_num(&self, user_ref_num: u32) -> Option<(usize, &Node)> {
         let node_ptr = self.hashmap.get(&user_ref_num);
         
         match node_ptr {
-            Some(&node_ptr) => Some(&self.arena[node_ptr]),
+            Some(&node_ptr) => Some((node_ptr, &self.arena[node_ptr])),
             None => None
         }
     }
